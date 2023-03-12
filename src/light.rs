@@ -19,7 +19,7 @@ use bevy::{
         renderer::{RenderContext, RenderDevice, RenderQueue},
         texture::{FallbackImage, TextureCache},
         view::ViewUniformOffset,
-        RenderApp, RenderStage,
+        RenderApp, RenderSet,
     },
     utils::HashMap,
 };
@@ -37,13 +37,14 @@ impl Plugin for LightPlugin {
             render_app
                 .init_resource::<ReservoirCache>()
                 .init_resource::<SpecializedComputePipelines<LightPipeline>>()
-                .add_system_to_stage(
-                    RenderStage::Prepare,
-                    prepare_light_pipeline.after(MeshMaterialSystems::PrepareAssets),
+                .add_system(
+                    prepare_light_pipeline
+                        .in_base_set(RenderSet::Prepare)
+                        .after(MeshMaterialSystems::PrepareAssets),
                 )
-                .add_system_to_stage(RenderStage::Prepare, prepare_light_textures)
-                .add_system_to_stage(RenderStage::Queue, queue_light_bind_groups)
-                .add_system_to_stage(RenderStage::Queue, queue_light_pipelines);
+                .add_system(prepare_light_textures.in_base_set(RenderSet::Prepare))
+                .add_system(queue_light_bind_groups.in_base_set(RenderSet::Queue))
+                .add_system(queue_light_pipelines.in_base_set(RenderSet::Queue));
         }
     }
 }
@@ -169,6 +170,7 @@ impl SpecializedComputePipeline for LightPipeline {
             shader: LIGHT_SHADER_HANDLE.typed::<Shader>(),
             shader_defs,
             entry_point,
+            push_constant_ranges: vec![],
         }
     }
 }
@@ -334,6 +336,7 @@ fn prepare_light_textures(
                             dimension: TextureDimension::D2,
                             format: texture_format,
                             usage: texture_usage,
+                            view_formats: &[],
                         },
                     )
                     .default_view

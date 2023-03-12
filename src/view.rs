@@ -7,7 +7,7 @@ use bevy::{
         render_resource::*,
         renderer::{RenderDevice, RenderQueue},
         view::ExtractedView,
-        RenderApp, RenderStage,
+        RenderApp, RenderSet,
     },
 };
 
@@ -18,12 +18,12 @@ impl Plugin for ViewPlugin {
             .add_plugin(ExtractComponentPlugin::<FrameCounter>::default())
             .add_plugin(ExtractComponentPlugin::<FrameUniform>::default())
             .add_plugin(UniformComponentPlugin::<FrameUniform>::default())
-            .add_system_to_stage(CoreStage::PostUpdate, frame_counter_system);
+            .add_system(frame_counter_system.in_base_set(CoreSet::PostUpdate));
 
         if let Ok(render_app) = app.get_sub_app_mut(RenderApp) {
             render_app
                 .init_resource::<PreviousViewUniforms>()
-                .add_system_to_stage(RenderStage::Prepare, prepare_view_uniforms);
+                .add_system(prepare_view_uniforms.in_base_set(RenderSet::Prepare));
         }
     }
 }

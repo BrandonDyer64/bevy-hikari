@@ -28,14 +28,14 @@ use bevy::{
         render_graph::{Node, NodeRunError, RenderGraphContext, SlotInfo, SlotType},
         render_phase::{
             sort_phase_system, AddRenderCommand, CachedRenderPipelinePhaseItem, DrawFunctionId,
-            DrawFunctions, EntityPhaseItem, EntityRenderCommand, PhaseItem, RenderCommandResult,
-            RenderPhase, SetItemPipeline, TrackedRenderPass,
+            DrawFunctions, PhaseItem, RenderCommand, RenderCommandResult, RenderPhase,
+            SetItemPipeline, TrackedRenderPass,
         },
         render_resource::*,
         renderer::{RenderContext, RenderDevice},
         texture::{FallbackImage, GpuImage, ImageSampler, TextureCache},
         view::{ExtractedView, ViewUniform, ViewUniformOffset, ViewUniforms, VisibleEntities},
-        Extract, RenderApp, RenderStage,
+        Extract, RenderApp, RenderSet,
     },
     utils::FloatOrd,
 };
@@ -58,12 +58,17 @@ impl Plugin for PrepassPlugin {
                 .init_resource::<PrepassPipeline>()
                 .init_resource::<SpecializedMeshPipelines<PrepassPipeline>>()
                 .add_render_command::<Prepass, DrawPrepass>()
-                .add_system_to_stage(RenderStage::Extract, extract_prepass_camera_phases)
-                .add_system_to_stage(RenderStage::Queue, queue_prepass_depth_texture)
-                .add_system_to_stage(RenderStage::Queue, queue_prepass_meshes)
-                .add_system_to_stage(RenderStage::Queue, queue_prepass_bind_group)
-                .add_system_to_stage(RenderStage::Queue, queue_deferred_bind_group)
-                .add_system_to_stage(RenderStage::PhaseSort, sort_phase_system::<Prepass>);
+                .add_system(extract_prepass_camera_phases.in_schedule(ExtractSchedule))
+                .add_systems(
+                    (
+                        queue_prepass_depth_texture,
+                        queue_prepass_meshes,
+                        queue_prepass_bind_group,
+                        queue_deferred_bind_group,
+                    )
+                        .in_base_set(RenderSet::Queue),
+                )
+                .add_system(sort_phase_system::<Prepass>.in_base_set(RenderSet::PhaseSort));
         }
     }
 }
@@ -265,6 +270,7 @@ impl SpecializedMeshPipeline for PrepassPipeline {
                 },
             }),
             multisample: MultisampleState::default(),
+            push_constant_ranges: vec![],
         })
     }
 }
@@ -381,6 +387,7 @@ fn prepass_textures_system(
                     dimension: TextureDimension::D2,
                     format: texture_format,
                     usage: texture_usage,
+                    view_formats: &[],
                 };
                 let sampler_descriptor = ImageSampler::Descriptor(SamplerDescriptor {
                     mag_filter: FilterMode::Nearest,
@@ -449,6 +456,7 @@ fn queue_prepass_depth_texture(
                 dimension: TextureDimension::D2,
                 format: TextureFormat::Depth32Float,
                 usage: texture_usage,
+                view_formats: &[],
             },
         );
         commands
@@ -636,9 +644,7 @@ impl PhaseItem for Prepass {
     fn draw_function(&self) -> DrawFunctionId {
         self.draw_function
     }
-}
 
-impl EntityPhaseItem for Prepass {
     #[inline]
     fn entity(&self) -> Entity {
         self.entity
@@ -660,7 +666,7 @@ type DrawPrepass = (
 );
 
 pub struct SetViewBindGroup<const I: usize>;
-impl<const I: usize> EntityRenderCommand for SetViewBindGroup<I> {
+impl<const I: usize> RenderCommand<Entity> for SetViewBindGroup<I> {
     type Param = (
         SRes<PrepassBindGroup>,
         SQuery<(
@@ -698,7 +704,7 @@ impl<const I: usize> EntityRenderCommand for SetViewBindGroup<I> {
 }
 
 pub struct SetMeshBindGroup<const I: usize>;
-impl<const I: usize> EntityRenderCommand for SetMeshBindGroup<I> {
+impl<const I: usize> RenderCommand<Entity> for SetMeshBindGroup<I> {
     type Param = (
         Option<SRes<PrepassBindGroup>>,
         SQuery<(
@@ -837,7 +843,8 @@ impl Node for PrepassNode {
                 .command_encoder
                 .begin_render_pass(&pass_descriptor);
             let mut draw_functions = draw_functions.write();
-            let mut tracked_pass = TrackedRenderPass::new(render_pass);
+            let mut tracked_pass =
+                TrackedRenderPass::new(render_context.render_device(), render_pass);
             if let Some(viewport) = camera.viewport.as_ref() {
                 tracked_pass.set_camera_viewport(viewport);
             }

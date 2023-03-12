@@ -10,10 +10,10 @@ use bevy::{
     render::{
         mesh::VertexAttributeValues,
         render_asset::RenderAssets,
-        render_phase::{EntityRenderCommand, RenderCommandResult, TrackedRenderPass},
+        render_phase::{RenderCommand, RenderCommandResult, TrackedRenderPass},
         render_resource::*,
         renderer::RenderDevice,
-        RenderApp, RenderStage,
+        RenderApp, RenderSet,
     },
 };
 use bvh::{
@@ -48,11 +48,10 @@ impl Plugin for MeshMaterialPlugin {
             render_app
                 .init_resource::<MeshMaterialBindGroupLayout>()
                 .init_resource::<TextureBindGroupLayout>()
-                .add_system_to_stage(
-                    RenderStage::Prepare,
-                    prepare_texture_bind_group_layout.label(MeshMaterialSystems::PrepareAssets),
+                .add_system(
+                    prepare_texture_bind_group_layout.in_set(MeshMaterialSystems::PrepareAssets),
                 )
-                .add_system_to_stage(RenderStage::Queue, queue_mesh_material_bind_group);
+                .add_system(queue_mesh_material_bind_group.in_set(RenderSet::Queue));
         }
     }
 }
@@ -475,7 +474,7 @@ pub struct GpuMeshIndex {
     pub node: UVec2,
 }
 
-#[derive(Debug, Hash, PartialEq, Eq, Clone, SystemLabel)]
+#[derive(Debug, Hash, PartialEq, Eq, Clone, SystemSet)]
 pub enum MeshMaterialSystems {
     PrepareTextures,
     PrepareAssets,
@@ -808,7 +807,7 @@ fn queue_mesh_material_bind_group(
 }
 
 pub struct SetMeshMaterialBindGroup<const I: usize>;
-impl<const I: usize> EntityRenderCommand for SetMeshMaterialBindGroup<I> {
+impl<const I: usize> RenderCommand<Entity> for SetMeshMaterialBindGroup<I> {
     type Param = SRes<MeshMaterialBindGroup>;
 
     fn render<'w>(

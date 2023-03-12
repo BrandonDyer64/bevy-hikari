@@ -5,7 +5,7 @@ use bevy::{
     render::{
         render_resource::*,
         renderer::{RenderDevice, RenderQueue},
-        Extract, RenderApp, RenderStage,
+        Extract, RenderApp,
     },
     utils::{HashMap, HashSet},
 };
@@ -20,16 +20,12 @@ impl Plugin for MaterialPlugin {
                 .init_resource::<MaterialRenderAssets>()
                 .init_resource::<MaterialTextures>()
                 .init_resource::<GpuStandardMaterials>()
-                .add_system_to_stage(
-                    RenderStage::Prepare,
+                .add_system(
                     prepare_material_textures
-                        .label(MeshMaterialSystems::PrepareTextures)
+                        .in_set(MeshMaterialSystems::PrepareTextures)
                         .before(MeshMaterialSystems::PrepareAssets),
                 )
-                .add_system_to_stage(
-                    RenderStage::Prepare,
-                    prepare_material_assets.label(MeshMaterialSystems::PrepareAssets),
-                );
+                .add_system(prepare_material_assets.in_set(MeshMaterialSystems::PrepareAssets));
         }
     }
 }
@@ -43,7 +39,7 @@ where
 {
     fn build(&self, app: &mut App) {
         if let Ok(render_app) = app.get_sub_app_mut(RenderApp) {
-            render_app.add_system_to_stage(RenderStage::Extract, extract_material_assets::<M>);
+            render_app.add_system(extract_material_assets::<M>.in_schedule(ExtractSchedule));
         }
     }
 }

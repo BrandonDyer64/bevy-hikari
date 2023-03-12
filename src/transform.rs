@@ -9,9 +9,10 @@ pub struct TransformPlugin;
 impl Plugin for TransformPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugin(ExtractComponentPlugin::<GlobalTransformQueue>::default())
-            .add_system_to_stage(
-                CoreStage::PostUpdate,
-                previous_transform_system.after(TransformSystem::TransformPropagate),
+            .add_system(
+                previous_transform_system
+                    .in_base_set(CoreSet::PostUpdate)
+                    .after(TransformSystem::TransformPropagate),
             );
     }
 }

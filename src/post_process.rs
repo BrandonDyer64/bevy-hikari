@@ -21,7 +21,7 @@ use bevy::{
         renderer::{RenderContext, RenderDevice},
         texture::TextureCache,
         view::ViewUniformOffset,
-        RenderApp, RenderStage,
+        RenderApp, RenderSet,
     },
 };
 use serde::Serialize;
@@ -38,9 +38,9 @@ impl Plugin for PostProcessPlugin {
             render_app
                 .init_resource::<PostProcessPipeline>()
                 .init_resource::<SpecializedComputePipelines<PostProcessPipeline>>()
-                .add_system_to_stage(RenderStage::Prepare, prepare_post_process_textures)
-                .add_system_to_stage(RenderStage::Queue, queue_post_process_pipelines)
-                .add_system_to_stage(RenderStage::Queue, queue_post_process_bind_groups);
+                .add_system(prepare_post_process_textures.in_base_set(RenderSet::Prepare))
+                .add_system(queue_post_process_pipelines.in_base_set(RenderSet::Queue))
+                .add_system(queue_post_process_bind_groups.in_base_set(RenderSet::Queue));
         }
     }
 }
@@ -496,6 +496,7 @@ impl SpecializedComputePipeline for PostProcessPipeline {
             shader,
             shader_defs,
             entry_point,
+            push_constant_ranges: vec![],
         }
     }
 }
@@ -654,6 +655,7 @@ fn prepare_post_process_textures(
                 dimension: TextureDimension::D2,
                 format: HDR_TEXTURE_FORMAT,
                 usage: texture_usage,
+                view_formats: &[],
             },
         )
         .default_view;
@@ -677,6 +679,7 @@ fn prepare_post_process_textures(
                             dimension: TextureDimension::D2,
                             format: texture_format,
                             usage: texture_usage,
+                            view_formats: &[],
                         },
                     )
                     .default_view
